@@ -15,6 +15,7 @@ import { acceleratedRaycast } from "three-mesh-bvh";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {IFCLoader} from "web-ifc-three";
 import { computeBoundsTree, disposeBoundsTree } from "three-mesh-bvh";
+import { IFCBUILDING } from "web-ifc";
 
 //Creates the Three.js scene
 const scene = new Scene();
@@ -145,13 +146,34 @@ async function pick(event,material,getProps) {
     lastModel = found.object;
     const geometry = found.object.geometry;
     const id  = loader.ifcManager.getExpressId(geometry,index);
-    console.log(id);
+    
 
     if(getProps){
-      const props = await loader.ifcManager.getItemProperties(found.object.modelID,id);
+      const buildingsIDs = await loader.ifcManager.getAllItemsOfType(found.object.modelID, IFCBUILDING);
+      const buildingID = buildingsIDs[0];
+      const buildingProps = await loader.ifcManager.getItemProperties(found.object.modelID, buildingID,true);
+      console.log(buildingProps);
+
+
+
+      /*
+      GET IDs PROPERTIES OF OBJECT
+      const props = await loader.ifcManager.getItemProperties(found.object.modelID,id);      
+      const psets = await loader.ifcManager.getPropertySets(found.object.modelID,id);
+      
+      for(const pset of psets){
+        const realValues= []
+        for(const prop of pset.HasProperties){
+          const id = prop.value;
+          const value = await loader.ifcManager.getItemProperties(found.object.modelID,id);
+          realValues.push(value); 
+        }
+        pset.HasProperties = realValues;
+      }
+
       console.log(props);
-      const typeProps = await loader.ifcManager.getPropertySets(found.object.modelID,id);
-      console.log(typeProps);
+      console.log(psets);
+      */
     }
     
   
