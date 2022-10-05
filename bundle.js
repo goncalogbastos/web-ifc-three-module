@@ -59007,7 +59007,7 @@ var IFCBUILDINGELEMENTPARTTYPE = 39481116;
 var IFCBUILDINGELEMENTPROXY = 1095909175;
 var IFCBUILDINGELEMENTPROXYTYPE = 1909888760;
 var IFCBUILDINGELEMENTTYPE = 1950629157;
-var IFCBUILDINGSTOREY = 3124254112;
+var IFCBUILDINGSTOREY$1 = 3124254112;
 var IFCBUILDINGSYSTEM = 1177604601;
 var IFCBURNER = 2938176219;
 var IFCBURNERTYPE = 2188180465;
@@ -59765,7 +59765,7 @@ var IfcElements$1 = [
   IFCBUILDINGELEMENT,
   IFCBUILDINGELEMENTPART,
   IFCBUILDINGELEMENTPROXY,
-  IFCBUILDINGSTOREY,
+  IFCBUILDINGSTOREY$1,
   IFCBURNER,
   IFCCABLECARRIERFITTING,
   IFCCABLECARRIERSEGMENT,
@@ -60167,7 +60167,7 @@ FromRawLineData[IFCBUILDINGELEMENTPROXYTYPE] = (d) => {
 FromRawLineData[IFCBUILDINGELEMENTTYPE] = (d) => {
   return IfcBuildingElementType.FromTape(d.ID, d.type, d.arguments);
 };
-FromRawLineData[IFCBUILDINGSTOREY] = (d) => {
+FromRawLineData[IFCBUILDINGSTOREY$1] = (d) => {
   return IfcBuildingStorey.FromTape(d.ID, d.type, d.arguments);
 };
 FromRawLineData[IFCBUILDINGSYSTEM] = (d) => {
@@ -107449,13 +107449,18 @@ var require_web_ifc = __commonJS({
   }
 });
 var IFCBUILDING = 4031249490;
+var IFCBUILDINGSTOREY = 3124254112;
 if (typeof self !== "undefined" && self.crossOriginIsolated) {
   require_web_ifc_mt();
 } else {
   require_web_ifc();
 }
 
-//Creates the Three.js scene
+///////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////
+// THREE.JS SCENE
+///////////////////////////////////////////////////////////////////////////
 const scene = new Scene();
 
 //Object to store the size of the viewport
@@ -107469,7 +107474,6 @@ const camera = new PerspectiveCamera(75, size.width / size.height);
 camera.position.z = 15;
 camera.position.y = 13;
 camera.position.x = 8;
-
 
 //Creates the lights of the scene
 const lightColor = 0xffffff;
@@ -107520,25 +107524,34 @@ window.addEventListener("resize", () => {
 
 
 
-
-// IFC Loading
+///////////////////////////////////////////////////////////////////////////
+// IFC LOADING
+///////////////////////////////////////////////////////////////////////////
 const loader = new IFCLoader();
+
+loader.ifcManager.setWasmPath("wasm/");
+loader.ifcManager.useWebWorkers(true, "./IFCWorker.js");
+
 const input = document.getElementById('file-input');
 
 loader.ifcManager.setupThreeMeshBVH(computeBoundsTree, disposeBoundsTree, acceleratedRaycast);
 
 const ifcModels = [];
 
+let model;
 input.addEventListener('change', async () =>{
   const file = input.files[0];
   const url = URL.createObjectURL(file);
-  const model = await loader.loadAsync(url);
+  model = await loader.loadAsync(url);
   scene.add(model);
   ifcModels.push(model);
+  await editFloorName();
 });
 
 
+///////////////////////////////////////////////////////////////////////////
 // IFC selecting and higlithing
+///////////////////////////////////////////////////////////////////////////
 const raycaster = new Raycaster();
 raycaster.firstHitOnly = true;
 const mouse = new Vector2();
@@ -107557,7 +107570,6 @@ const selectionMaterial = new MeshBasicMaterial({
   depthTest: false
 });
 
-
 function cast(event) {
   const bounds = threeCanvas.getBoundingClientRect();
   const x1 = event.clientX - bounds.left;
@@ -107574,7 +107586,6 @@ function cast(event) {
 
 }
 
-
 let lastModel;
 
 async function pick(event,material,getProps) {
@@ -107583,16 +107594,13 @@ async function pick(event,material,getProps) {
     const index = found.faceIndex;
     lastModel = found.object;
     const geometry = found.object.geometry;
-    const id  = loader.ifcManager.getExpressId(geometry,index);
-    
+    const id  = loader.ifcManager.getExpressId(geometry,index);    
 
     if(getProps){
       const buildingsIDs = await loader.ifcManager.getAllItemsOfType(found.object.modelID, IFCBUILDING);
       const buildingID = buildingsIDs[0];
       const buildingProps = await loader.ifcManager.getItemProperties(found.object.modelID, buildingID,true);
       console.log(buildingProps);
-
-
 
       /*
       GET IDs PROPERTIES OF OBJECT
@@ -107604,7 +107612,7 @@ async function pick(event,material,getProps) {
         for(const prop of pset.HasProperties){
           const id = prop.value;
           const value = await loader.ifcManager.getItemProperties(found.object.modelID,id);
-          realValues.push(value);
+          realValues.push(value); 
         }
         pset.HasProperties = realValues;
       }
@@ -107612,8 +107620,7 @@ async function pick(event,material,getProps) {
       console.log(props);
       console.log(psets);
       */
-    }
-    
+    }   
   
     loader.ifcManager.createSubset({
       modelID: found.object.modelID,
@@ -107628,5 +107635,46 @@ async function pick(event,material,getProps) {
   }
 }
 
+///////////////////////////////////////////////////////////////////////////
+// MOUSE EVENTS
+///////////////////////////////////////////////////////////////////////////
 threeCanvas.onmousemove = (event) => pick(event,highlightMaterial,false);
 threeCanvas.ondblclick = (event) => pick(event,selectionMaterial,true);
+
+///////////////////////////////////////////////////////////////////////////
+//PROGRESS BAR - MULTITHREADING
+///////////////////////////////////////////////////////////////////////////
+setupProgress();
+function setupProgress(){
+  const text = document.getElementById('progress-text');
+  loader.ifcManager.setOnProgress((event) => {
+    const percent = event.loaded/ event.total * 100;
+    const formatted = Math.trunc(percent);
+    text.innerText = formatted;    
+  });
+}
+
+///////////////////////////////////////////////////////////////////////////
+// EDIT IFC FILES
+///////////////////////////////////////////////////////////////////////////
+async function editFloorName(){
+  const storeysIds = await loader.ifcManager.getAllItemsOfType(model.modelID, IFCBUILDINGSTOREY,false);
+  const firstStoreyId = storeysIds[0];
+  const storey = await loader.ifcManager.getItemProperties(model.modelID, firstStoreyId);
+  console.log(storey);
+
+  const result = prompt("introduce the new name for the storey:");
+  storey.LongName.value = result;
+  loader.ifcManager.ifcAPI.WriteLine(model.modelID, storey);
+
+  const data = await loader.ifcManager.ifcAPI.ExportFileAsIFC(model.modelID);
+  const blob = new Blob([data]);
+  const file = new File([blob],'modefied.ifc');
+
+  const link = document.createElement('a');
+  link.download = 'modified.ifc';
+  link.href = URL.createObjectURL(file);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}

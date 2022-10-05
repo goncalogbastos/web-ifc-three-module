@@ -18,3 +18,14 @@ html, body {
 #file-input{
     position: absolute;
 }
+
+#text-container{
+    margin: 2rem;
+    position: absolute;
+    margin-top: 2rem;
+    display: flex;
+}
+
+#text-container *:first-child {
+    margin-right: 5px;
+}
